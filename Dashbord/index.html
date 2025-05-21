@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="Author" content="Dashboard Olist">
+  <title>Dashboard Olist E-commerce</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>📊 Dashboard Olist E-commerce</h1>
+  </header>
+  
+  <div class="dashboard-container">
+    <nav class="sidebar">
+      <h2>Menu</h2>
+      <ul>
+        <li><a href="#" id="nav-dashboard" class="active">Dashboard</a></li>
+        <li><a href="#" id="nav-products">Produtos</a></li>
+        <li><a href="#" id="nav-customers">Clientes</a></li>
+        <li><a href="#" id="nav-orders">Pedidos</a></li>
+        <li><a href="#" id="nav-apidata">API Pública</a></li>
+      </ul>
+    </nav>
+
+    <main class="content">
+      <!-- Seção Dashboard -->
+      <section id="section-dashboard" class="section-active">
+        <div class="chart-selector">
+          <button id="barBtn" class="active">Gráfico de Barras</button>
+          <button id="lineBtn">Gráfico de Linha</button>
+          <button id="pieBtn">Gráfico de Pizza</button>
+        </div>
+
+        <div class="charts-grid">
+          <!-- Gráfico 1 -->
+          <div class="chart-box">
+            <h3>Distribuição dos Tipos de Pagamento</h3>
+            <div class="chart-container">
+              <canvas id="graficoPagamentos"></canvas>
+            </div>
+          </div>
+
+          <!-- Gráfico 2 -->
+          <div class="chart-box">
+            <h3>Total de Pedidos por Estado</h3>
+            <div class="chart-container">
+              <canvas id="graficoPedidosEstado"></canvas>
+            </div>
+          </div>
+
+          <!-- Gráfico 3 -->
+          <div class="chart-box">
+            <h3>Tempo Médio de Entrega por Estado</h3>
+            <div class="chart-container">
+              <canvas id="graficoEntregaEstado"></canvas>
+            </div>
+          </div>
+
+          <!-- Gráfico 4 -->
+          <div class="chart-box">
+            <h3>Valor Médio das Compras por Estado</h3>
+            <div class="chart-container">
+              <canvas id="graficoValorPorEstado"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Seção Produtos (CRUD) -->
+      <section id="section-products" class="hidden">
+        <h2>Gerenciamento de Produtos</h2>
+        
+        <div class="crud-actions">
+          <button id="btn-add-product" class="btn-primary">Adicionar Novo Produto</button>
+        </div>
+
+        <div id="product-form-container" class="form-container hidden">
+          <h3 id="product-form-title">Adicionar Produto</h3>
+          <form id="product-form">
+            <input type="hidden" id="product-id">
+            <div class="form-group">
+              <label for="product-name">Nome do Produto</label>
+              <input type="text" id="product-name" required>
+            </div>
+            <div class="form-group">
+              <label for="product-category">Categoria</label>
+              <input type="text" id="product-category" required>
+            </div>
+            <div class="form-group">
+              <label for="product-price">Preço (R$)</label>
+              <input type="number" id="product-price" step="0.01" min="0" required>
+            </div>
+            <div class="form-group">
+              <label for="product-description">Descrição</label>
+              <textarea id="product-description" rows="3"></textarea>
+            </div>
+            <div class="form-buttons">
+              <button type="submit" class="btn-primary">Salvar</button>
+              <button type="button" id="btn-cancel-product" class="btn-secondary">Cancelar</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="data-table-container">
+          <table id="products-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Categoria</th>
+                <th>Preço</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="products-list">
+              <!-- Dados carregados via JavaScript -->
+            </tbody>
+          </table>
+          <div id="products-loading" class="loading">Carregando...</div>
+          <div id="products-empty" class="empty-message hidden">Nenhum produto encontrado.</div>
+        </div>
+      </section>
+
+      <!-- Seção Clientes -->
+      <section id="section-customers" class="hidden">
+        <h2>Clientes</h2>
+        <div class="data-table-container">
+          <table id="customers-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Estado</th>
+                <th>Cidade</th>
+              </tr>
+            </thead>
+            <tbody id="customers-list">
+              <!-- Dados carregados via JavaScript -->
+            </tbody>
+          </table>
+          <div id="customers-loading" class="loading">Carregando...</div>
+          <div id="customers-empty" class="empty-message hidden">Nenhum cliente encontrado.</div>
+        </div>
+      </section>
+
+      <!-- Seção Pedidos -->
+      <section id="section-orders" class="hidden">
+        <h2>Pedidos</h2>
+        <div class="data-table-container">
+          <table id="orders-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Cliente</th>
+                <th>Status</th>
+                <th>Data da Compra</th>
+                <th>Data da Entrega</th>
+              </tr>
+            </thead>
+            <tbody id="orders-list">
+              <!-- Dados carregados via JavaScript -->
+            </tbody>
+          </table>
+          <div id="orders-loading" class="loading">Carregando...</div>
+          <div id="orders-empty" class="empty-message hidden">Nenhum pedido encontrado.</div>
+        </div>
+      </section>
+
+      <!-- Seção API Pública -->
+      <section id="section-apidata" class="hidden">
+        <h2>Dados da API Pública</h2>
+        <div class="api-filter">
+          <label for="api-filter-input">Filtrar por CEP:</label>
+          <input type="text" id="api-filter-input" placeholder="Digite um CEP...">
+          <button id="api-filter-button" class="btn-primary">Buscar</button>
+        </div>
+        <div class="data-container">
+          <div id="api-data-results">
+            <!-- Dados carregados via JavaScript -->
+          </div>
+          <div id="api-loading" class="loading">Carregando...</div>
+          <div id="api-empty" class="empty-message hidden">Nenhum dado encontrado.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <p>Dashboard Olist E-commerce &copy; 2025</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
