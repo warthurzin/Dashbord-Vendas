@@ -21,7 +21,13 @@ const appState = {
   payments: [],
   currentProduct: null,
   chartType: 'bar',
-  charts: {}
+  charts: {},
+  // Paginação de produtos
+  pagination: {
+    currentPage: 1,
+    itemsPerPage: 10,
+    totalItems: 0
+  }
 };
 
 // ===========================================
@@ -107,6 +113,9 @@ async function loadAllData() {
     appState.orders = ordersData;
     appState.payments = paymentsData;
     
+    // Atualizar total de itens para paginação
+    appState.pagination.totalItems = productsData.length;
+    
     // Renderizar tabelas
     renderProductsTable();
     renderCustomersTable();
@@ -178,7 +187,7 @@ async function fetchPayments() {
 }
 
 // ===========================================
-// CRUD DE PRODUTOS
+// CRUD DE PRODUTOS COM PAGINAÇÃO
 // ===========================================
 function setupProductCRUD() {
   // Botão para adicionar novo produto
@@ -218,6 +227,7 @@ function setupProductCRUD() {
       
       // Recarregar produtos
       appState.products = await fetchProducts();
+      appState.pagination.totalItems = appState.products.length;
       renderProductsTable();
       
       // Esconder formulário
@@ -274,7 +284,7 @@ async function deleteProduct(productId) {
   return response.json();
 }
 
-// Renderizar tabela de produtos
+// Renderizar tabela de produtos com paginação
 function renderProductsTable() {
   const productsList = document.getElementById('products-list');
   const loadingElement = document.getElementById('products-loading');
@@ -292,8 +302,14 @@ function renderProductsTable() {
     return;
   }
   
-  // Renderizar produtos
-  appState.products.forEach(product => {
+  // Calcular paginação
+  const { currentPage, itemsPerPage } = appState.pagination;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedProducts = appState.products.slice(startIndex, endIndex);
+  
+  // Renderizar produtos da página atual
+  paginatedProducts.forEach(product => {
     const row = document.createElement('tr');
     
     row.innerHTML = `
@@ -318,8 +334,85 @@ function renderProductsTable() {
     btn.addEventListener('click', handleDeleteProduct);
   });
   
+  // Renderizar controles de paginação
+  renderPaginationControls();
+  
   // Esconder loading
   loadingElement.classList.add('hidden');
+}
+
+// Renderizar controles de paginação
+function renderPaginationControls() {
+  const { currentPage, itemsPerPage, totalItems } = appState.pagination;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  
+  // Verificar se já existe container de paginação
+  let paginationContainer = document.getElementById('pagination-container');
+  if (!paginationContainer) {
+    paginationContainer = document.createElement('div');
+    paginationContainer.id = 'pagination-container';
+    paginationContainer.className = 'pagination-container';
+    
+    // Inserir após a tabela
+    const tableContainer = document.querySelector('#section-products .data-table-container');
+    tableContainer.appendChild(paginationContainer);
+  }
+  
+  // Limpar container
+  paginationContainer.innerHTML = '';
+  
+  if (totalPages <= 1) {
+    return; // Não mostrar paginação se há apenas uma página
+  }
+  
+  // Criar HTML da paginação
+  let paginationHTML = `
+    <div class="pagination-info">
+      Mostrando ${(currentPage - 1) * itemsPerPage + 1} a ${Math.min(currentPage * itemsPerPage, totalItems)} de ${totalItems} produtos
+    </div>
+    <div class="pagination-controls">
+  `;
+  
+  // Botão anterior
+  paginationHTML += `
+    <button class="pagination-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="changePage(${currentPage - 1})">
+      ← Anterior
+    </button>
+  `;
+  
+  // Botões de página
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === currentPage) {
+      paginationHTML += `<button class="pagination-btn active">${i}</button>`;
+    } else if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+      paginationHTML += `<button class="pagination-btn" onclick="changePage(${i})">${i}</button>`;
+    } else if (i === currentPage - 3 || i === currentPage + 3) {
+      paginationHTML += `<span class="pagination-ellipsis">...</span>`;
+    }
+  }
+  
+  // Botão próximo
+  paginationHTML += `
+    <button class="pagination-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="changePage(${currentPage + 1})">
+      Próximo →
+    </button>
+  `;
+  
+  paginationHTML += '</div>';
+  
+  paginationContainer.innerHTML = paginationHTML;
+}
+
+// Função global para mudar página
+function changePage(page) {
+  const totalPages = Math.ceil(appState.pagination.totalItems / appState.pagination.itemsPerPage);
+  
+  if (page < 1 || page > totalPages) {
+    return;
+  }
+  
+  appState.pagination.currentPage = page;
+  renderProductsTable();
 }
 
 // Manipular edição de produto
@@ -354,6 +447,14 @@ async function handleDeleteProduct(e) {
     
     // Atualizar lista de produtos
     appState.products = appState.products.filter(p => p.objectId !== productId);
+    appState.pagination.totalItems = appState.products.length;
+    
+    // Ajustar página atual se necessário
+    const totalPages = Math.ceil(appState.pagination.totalItems / appState.pagination.itemsPerPage);
+    if (appState.pagination.currentPage > totalPages && totalPages > 0) {
+      appState.pagination.currentPage = totalPages;
+    }
+    
     renderProductsTable();
     
   } catch (error) {
@@ -732,7 +833,9 @@ function updateOrdersByStateChart() {
   appState.charts.ordersByState = new Chart(canvas, config);
 }
 
-// Gráfico 3: Tempo Médio de Entrega por Estado
+// Continuação do código onde parou + correções
+
+// Gráfico 3: Tempo Médio de Entrega por Estado (continuação da função que estava cortada)
 function updateDeliveryTimeChart() {
   const canvas = document.getElementById('graficoEntregaEstado');
   
@@ -761,18 +864,31 @@ function updateDeliveryTimeChart() {
     const dtCompra = new Date(o.order_purchase_timestamp);
     const dtEntrega = new Date(o.order_delivered_customer_date);
     
-    if (state && dtCompra && dtEntrega && !isNaN(dtCompra) && !isNaN(dtEntrega) && dtEntrega > dtCompra) {
-      const dias = (dtEntrega - dtCompra) / (1000 * 60 * 60 * 24);
-      estados[state] = (estados[state] || 0) + dias;
-      quantidades[state] = (quantidades[state] || 0) + 1;
+    // Verificar se as datas são válidas
+    if (state && !isNaN(dtCompra.getTime()) && !isNaN(dtEntrega.getTime()) && dtEntrega > dtCompra) {
+      const diffTime = dtEntrega - dtCompra;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (!estados[state]) {
+        estados[state] = 0;
+        quantidades[state] = 0;
+      }
+      
+      estados[state] += diffDays;
+      quantidades[state]++;
     }
   });
   
   // Calcular médias
   const medias = {};
   Object.keys(estados).forEach(state => {
-    medias[state] = Number((estados[state] / quantidades[state]).toFixed(1));
+    medias[state] = estados[state] / quantidades[state];
   });
+  
+  // Verificar se temos dados para mostrar
+  if (Object.keys(medias).length === 0) {
+    return;
+  }
   
   // Cores para o gráfico
   const color = 'rgba(75, 192, 192, 0.5)';
@@ -784,7 +900,7 @@ function updateDeliveryTimeChart() {
     data: {
       labels: Object.keys(medias),
       datasets: [{
-        label: 'Tempo médio de entrega (dias)',
+        label: 'Tempo Médio de Entrega (dias)',
         data: Object.values(medias),
         backgroundColor: appState.chartType === 'pie' ? 
           Object.keys(medias).map((_, i) => `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.5)`) : 
@@ -833,71 +949,60 @@ function updateDeliveryTimeChart() {
 // Gráfico 4: Valor Médio das Compras por Estado
 function updateOrderValueChart() {
   const canvas = document.getElementById('graficoValorPorEstado');
-  
-  // Destruir gráfico existente, se houver
+
   if (appState.charts.orderValue) {
     appState.charts.orderValue.destroy();
   }
-  
-  // Verificar se temos dados
-  if (!appState.orders || appState.orders.length === 0 || 
-      !appState.customers || appState.customers.length === 0 ||
-      !appState.payments || appState.payments.length === 0) {
-    return;
-  }
-  
-  // Criar um mapa de cliente para estado
+
+  if (!appState.orders.length || !appState.customers.length) return;
+
+  // Mapeia clientes por estado
   const customerMap = {};
   appState.customers.forEach(c => {
     customerMap[c.customer_id] = c.customer_state;
   });
-  
-  // Somar valores de pagamento por pedido
-  const orderValues = {};
-  appState.payments.forEach(p => {
-    if (p.order_id && p.payment_value) {
-      orderValues[p.order_id] = (orderValues[p.order_id] || 0) + p.payment_value;
+
+  // Soma e conta valores por estado
+  const somaPorEstado = {};
+  const contagemPorEstado = {};
+
+  appState.orders.forEach(order => {
+    const state = customerMap[order.customer_id];
+    const value = order.payment_value;
+
+    if (state && typeof value === 'number' && value > 0) {
+      somaPorEstado[state] = (somaPorEstado[state] || 0) + value;
+      contagemPorEstado[state] = (contagemPorEstado[state] || 0) + 1;
     }
   });
-  
-  // Calcular valor médio por estado
-  const totalPorEstado = {};
-  const qtdPorEstado = {};
-  
-  appState.orders.forEach(o => {
-    const state = customerMap[o.customer_id];
-    const valor = orderValues[o.order_id];
-    
-    if (state && valor) {
-      totalPorEstado[state] = (totalPorEstado[state] || 0) + valor;
-      qtdPorEstado[state] = (qtdPorEstado[state] || 0) + 1;
-    }
-  });
-  
-  // Calcular médias
-  const medias = {};
-  Object.keys(totalPorEstado).forEach(state => {
-    medias[state] = Number((totalPorEstado[state] / qtdPorEstado[state]).toFixed(2));
-  });
-  
-  // Cores para o gráfico
-  const color = 'rgba(255, 99, 132, 0.5)';
-  const borderColor = 'rgb(255, 99, 132)';
-  
-  // Configuração inicial
-  let config = {
+
+  // Calcula valor médio por estado
+  const valorMedioPorEstado = {};
+  for (const estado in somaPorEstado) {
+    valorMedioPorEstado[estado] = somaPorEstado[estado] / contagemPorEstado[estado];
+  }
+
+  if (!Object.keys(valorMedioPorEstado).length) return;
+
+  // Cores
+  const backgroundColor = 'rgba(255, 159, 64, 0.5)';
+  const borderColor = 'rgb(255, 159, 64)';
+
+  const config = {
     type: appState.chartType === 'pie' ? 'pie' : appState.chartType,
     data: {
-      labels: Object.keys(medias),
+      labels: Object.keys(valorMedioPorEstado),
       datasets: [{
-        label: 'Valor médio por pedido (R$)',
-        data: Object.values(medias),
-        backgroundColor: appState.chartType === 'pie' ? 
-          Object.keys(medias).map((_, i) => `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.5)`) : 
-          color,
-        borderColor: appState.chartType === 'pie' ? 
-          Object.keys(medias).map((_, i) => `rgb(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)})`) : 
-          borderColor,
+        label: 'Valor Médio (R$)',
+        data: Object.values(valorMedioPorEstado),
+        backgroundColor: appState.chartType === 'pie'
+          ? Object.keys(valorMedioPorEstado).map(() =>
+              `rgba(${Math.random()*255}, ${Math.random()*255}, ${Math.random()*255}, 0.5)`)
+          : backgroundColor,
+        borderColor: appState.chartType === 'pie'
+          ? Object.keys(valorMedioPorEstado).map(() =>
+              `rgb(${Math.random()*255}, ${Math.random()*255}, ${Math.random()*255})`)
+          : borderColor,
         borderWidth: 1
       }]
     },
@@ -907,19 +1012,16 @@ function updateOrderValueChart() {
       plugins: {
         title: {
           display: true,
-          text: 'Valor Médio das Compras por Estado (R$)',
-          font: {
-            size: 16
-          }
+          text: 'Valor Médio das Compras por Estado',
+          font: { size: 16 }
         },
         legend: {
-          position: 'top',
+          position: 'top'
         }
       }
     }
   };
-  
-  // Para gráficos que não são de pizza, adicionar escalas
+
   if (appState.chartType !== 'pie') {
     config.options.scales = {
       y: {
@@ -931,7 +1033,303 @@ function updateOrderValueChart() {
       }
     };
   }
-  
-  // Criar o gráfico
+
   appState.charts.orderValue = new Chart(canvas, config);
+}
+
+// MELHORIAS NA PAGINAÇÃO DE PRODUTOS
+// Função aprimorada para buscar produtos com paginação do servidor
+async function fetchProductsPaginated(page = 1, limit = 10) {
+  const skip = (page - 1) * limit;
+  
+  try {
+    // Buscar produtos com paginação
+    const response = await fetch(`${BACK4APP_CONFIG.serverUrl}classes/Products?limit=${limit}&skip=${skip}&order=-createdAt`, { 
+      headers 
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Erro ao buscar produtos: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Buscar total de produtos para paginação
+    const countResponse = await fetch(`${BACK4APP_CONFIG.serverUrl}classes/Products?limit=0&count=1`, { 
+      headers 
+    });
+    
+    if (countResponse.ok) {
+      const countData = await countResponse.json();
+      appState.pagination.totalItems = countData.count || 0;
+    }
+    
+    return data.results || [];
+  } catch (error) {
+    console.error('Erro ao buscar produtos paginados:', error);
+    throw error;
+  }
+}
+
+// Função aprimorada para carregar produtos com paginação
+async function loadProductsPage(page = 1) {
+  try {
+    const products = await fetchProductsPaginated(page, appState.pagination.itemsPerPage);
+    appState.products = products;
+    appState.pagination.currentPage = page;
+    renderProductsTable();
+  } catch (error) {
+    console.error('Erro ao carregar página de produtos:', error);
+    alert('Erro ao carregar produtos. Tente novamente.');
+  }
+}
+
+// Função global aprimorada para mudar página
+function changePage(page) {
+  const totalPages = Math.ceil(appState.pagination.totalItems / appState.pagination.itemsPerPage);
+  
+  if (page < 1 || page > totalPages) {
+    return;
+  }
+  
+  // Carregar nova página do servidor
+  loadProductsPage(page);
+}
+
+// Função para adicionar controles de itens por página
+function renderItemsPerPageControl() {
+  let controlContainer = document.getElementById('items-per-page-container');
+  
+  if (!controlContainer) {
+    controlContainer = document.createElement('div');
+    controlContainer.id = 'items-per-page-container';
+    controlContainer.className = 'items-per-page-container';
+    controlContainer.style.cssText = `
+      margin: 10px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+    `;
+    
+    // Inserir antes da tabela
+    const tableContainer = document.querySelector('#section-products .data-table-container');
+    tableContainer.parentNode.insertBefore(controlContainer, tableContainer);
+  }
+  
+  controlContainer.innerHTML = `
+    <label for="items-per-page-select">Itens por página:</label>
+    <select id="items-per-page-select" style="padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
+      <option value="5" ${appState.pagination.itemsPerPage === 5 ? 'selected' : ''}>5</option>
+      <option value="10" ${appState.pagination.itemsPerPage === 10 ? 'selected' : ''}>10</option>
+      <option value="20" ${appState.pagination.itemsPerPage === 20 ? 'selected' : ''}>20</option>
+      <option value="50" ${appState.pagination.itemsPerPage === 50 ? 'selected' : ''}>50</option>
+    </select>
+  `;
+  
+  // Adicionar event listener
+  document.getElementById('items-per-page-select').addEventListener('change', (e) => {
+    appState.pagination.itemsPerPage = parseInt(e.target.value);
+    appState.pagination.currentPage = 1; // Voltar para primeira página
+    loadProductsPage(1);
+  });
+}
+
+// Função aprimorada para renderizar controles de paginação
+function renderPaginationControls() {
+  const { currentPage, itemsPerPage, totalItems } = appState.pagination;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  
+  // Verificar se já existe container de paginação
+  let paginationContainer = document.getElementById('pagination-container');
+  if (!paginationContainer) {
+    paginationContainer = document.createElement('div');
+    paginationContainer.id = 'pagination-container';
+    paginationContainer.className = 'pagination-container';
+    paginationContainer.style.cssText = `
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      align-items: center;
+    `;
+    
+    // Inserir após a tabela
+    const tableContainer = document.querySelector('#section-products .data-table-container');
+    tableContainer.appendChild(paginationContainer);
+  }
+  
+  // Limpar container
+  paginationContainer.innerHTML = '';
+  
+  if (totalPages <= 1) {
+    return; // Não mostrar paginação se há apenas uma página
+  }
+  
+  // Criar HTML da paginação
+  let paginationHTML = `
+    <div class="pagination-info" style="color: #666; font-size: 14px;">
+      Mostrando ${(currentPage - 1) * itemsPerPage + 1} a ${Math.min(currentPage * itemsPerPage, totalItems)} de ${totalItems} produtos
+    </div>
+    <div class="pagination-controls" style="display: flex; gap: 5px; align-items: center;">
+  `;
+  
+  // Botão primeira página
+  paginationHTML += `
+    <button class="pagination-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="changePage(1)" 
+            style="padding: 8px 12px; border: 1px solid #ddd; background: ${currentPage === 1 ? '#f5f5f5' : '#fff'}; cursor: ${currentPage === 1 ? 'not-allowed' : 'pointer'};">
+      ⟪
+    </button>
+  `;
+  
+  // Botão anterior
+  paginationHTML += `
+    <button class="pagination-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="changePage(${currentPage - 1})"
+            style="padding: 8px 12px; border: 1px solid #ddd; background: ${currentPage === 1 ? '#f5f5f5' : '#fff'}; cursor: ${currentPage === 1 ? 'not-allowed' : 'pointer'};">
+      ← Anterior
+    </button>
+  `;
+  
+  // Botões de página (mostrar no máximo 7 páginas)
+  let startPage = Math.max(1, currentPage - 3);
+  let endPage = Math.min(totalPages, currentPage + 3);
+  
+  // Ajustar para sempre mostrar 7 páginas quando possível
+  if (endPage - startPage < 6) {
+    if (startPage === 1) {
+      endPage = Math.min(totalPages, startPage + 6);
+    } else {
+      startPage = Math.max(1, endPage - 6);
+    }
+  }
+  
+  // Mostrar primeira página se não estiver no range
+  if (startPage > 1) {
+    paginationHTML += `<button class="pagination-btn" onclick="changePage(1)" style="padding: 8px 12px; border: 1px solid #ddd; background: #fff; cursor: pointer;">1</button>`;
+    if (startPage > 2) {
+      paginationHTML += `<span style="padding: 8px 4px;">...</span>`;
+    }
+  }
+  
+  // Páginas no range
+  for (let i = startPage; i <= endPage; i++) {
+    if (i === currentPage) {
+      paginationHTML += `<button class="pagination-btn active" style="padding: 8px 12px; border: 1px solid #007bff; background: #007bff; color: white; cursor: default;">${i}</button>`;
+    } else {
+      paginationHTML += `<button class="pagination-btn" onclick="changePage(${i})" style="padding: 8px 12px; border: 1px solid #ddd; background: #fff; cursor: pointer;">${i}</button>`;
+    }
+  }
+  
+  // Mostrar última página se não estiver no range
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) {
+      paginationHTML += `<span style="padding: 8px 4px;">...</span>`;
+    }
+    paginationHTML += `<button class="pagination-btn" onclick="changePage(${totalPages})" style="padding: 8px 12px; border: 1px solid #ddd; background: #fff; cursor: pointer;">${totalPages}</button>`;
+  }
+  
+  // Botão próximo
+  paginationHTML += `
+    <button class="pagination-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="changePage(${currentPage + 1})"
+            style="padding: 8px 12px; border: 1px solid #ddd; background: ${currentPage === totalPages ? '#f5f5f5' : '#fff'}; cursor: ${currentPage === totalPages ? 'not-allowed' : 'pointer'};">
+      Próximo →
+    </button>
+  `;
+  
+  // Botão última página
+  paginationHTML += `
+    <button class="pagination-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="changePage(${totalPages})"
+            style="padding: 8px 12px; border: 1px solid #ddd; background: ${currentPage === totalPages ? '#f5f5f5' : '#fff'}; cursor: ${currentPage === totalPages ? 'not-allowed' : 'pointer'};">
+      ⟫
+    </button>
+  `;
+  
+  paginationHTML += '</div>';
+  
+  paginationContainer.innerHTML = paginationHTML;
+}
+
+// Função aprimorada para renderizar tabela de produtos
+function renderProductsTable() {
+  const productsList = document.getElementById('products-list');
+  const loadingElement = document.getElementById('products-loading');
+  const emptyElement = document.getElementById('products-empty');
+  
+  // Renderizar controle de itens por página
+  renderItemsPerPageControl();
+  
+  // Mostrar loading
+  loadingElement.classList.remove('hidden');
+  emptyElement.classList.add('hidden');
+  productsList.innerHTML = '';
+  
+  if (appState.products.length === 0) {
+    // Sem produtos
+    loadingElement.classList.add('hidden');
+    emptyElement.classList.remove('hidden');
+    return;
+  }
+  
+  // Renderizar produtos (já vem paginado do servidor)
+  appState.products.forEach(product => {
+    const row = document.createElement('tr');
+    
+    row.innerHTML = `
+      <td>${product.name || 'N/A'}</td>
+      <td>${product.category || 'N/A'}</td>
+      <td>R$ ${product.price ? product.price.toFixed(2) : '0.00'}</td>
+      <td class="action-buttons">
+        <span class="edit-btn" data-id="${product.objectId}" style="cursor: pointer; color: #007bff; margin-right: 10px;">✏️ Editar</span>
+        <span class="delete-btn" data-id="${product.objectId}" style="cursor: pointer; color: #dc3545;">🗑️ Excluir</span>
+      </td>
+    `;
+    
+    productsList.appendChild(row);
+  });
+  
+  // Adicionar event listeners para botões de ação
+  document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', handleEditProduct);
+  });
+  
+  document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', handleDeleteProduct);
+  });
+  
+  // Renderizar controles de paginação
+  renderPaginationControls();
+  
+  // Esconder loading
+  loadingElement.classList.add('hidden');
+}
+
+// Atualizar a função de carregamento inicial para usar a nova paginação
+async function loadAllData() {
+  try {
+    // Carregar primeira página de produtos
+    await loadProductsPage(1);
+    
+    // Carregar outros dados em paralelo
+    const [customersData, ordersData, paymentsData] = await Promise.all([
+      fetchCustomers(),
+      fetchOrders(),
+      fetchPayments()
+    ]);
+    
+    // Atualizar o estado da aplicação
+    appState.customers = customersData;
+    appState.orders = ordersData;
+    appState.payments = paymentsData;
+    
+    // Renderizar tabelas
+    renderCustomersTable();
+    renderOrdersTable();
+    
+    // Atualizar gráficos
+    updateAllCharts();
+    
+  } catch (error) {
+    console.error('Erro ao carregar dados:', error);
+    alert('Ocorreu um erro ao carregar os dados. Por favor, tente novamente.');
+  }
 }
